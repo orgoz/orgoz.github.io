@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>De Java al lenguaje núcleo de Oz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f4f5f8; --surface: #ffffff; --ink: #18202e; --muted: #586274; --line: #d9dee6;
+  --accent: #b3121d; --accent-ink: #ffffff; --code-bg: #fbfbfd; --gutter: #eef0f4;
+  --err-bg: #fdecec; --err-ink: #8f1018; --ok: #1d6b45;
+  --k: #8a1c7c; --c: #6b7280; --s: #1d6b45; --n: #9a4b00; --v: #1f4fa3;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151c; --surface: #181e28; --ink: #e5e8ee; --muted: #9aa3b2; --line: #2a3241;
+    --accent: #e0545c; --accent-ink: #1a0a0b; --code-bg: #141a23; --gutter: #1c2330;
+    --err-bg: #3a1619; --err-ink: #ffb3b7; --ok: #6fd3a0;
+    --k: #e39be0; --c: #7f8899; --s: #86d9a8; --n: #f0b26b; --v: #93b8ff;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151c; --surface: #181e28; --ink: #e5e8ee; --muted: #9aa3b2; --line: #2a3241;
+  --accent: #e0545c; --accent-ink: #1a0a0b; --code-bg: #141a23; --gutter: #1c2330;
+  --err-bg: #3a1619; --err-ink: #ffb3b7; --ok: #6fd3a0;
+  --k: #e39be0; --c: #7f8899; --s: #86d9a8; --n: #f0b26b; --v: #93b8ff;
+  color-scheme: dark;
+}
+:root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+*, *::before, *::after { box-sizing: inherit; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; font-size: 16px; line-height: 1.5;
+}
+code, pre, textarea, .mono { font-family: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace; }
+.wrap { max-width: 1440px; margin: 0 auto; padding: 0 clamp(14px, 3vw, 32px); }
+
+header.top { border-top: 6px solid var(--accent); background: var(--surface); border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: flex-end; justify-content: space-between; padding-top: 22px; padding-bottom: 18px; }
+h1 { margin: 0; font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.25rem); line-height: 1.1; letter-spacing: -0.01em; }
+h1 .arrow { color: var(--accent); font-weight: 400; padding: 0 .15em; }
+.sub { margin: 6px 0 0; color: var(--muted); max-width: 62ch; }
+.pick { display: flex; flex-direction: column; gap: 4px; min-width: 240px; }
+.pick label { font-size: .85rem; color: var(--muted); }
+select, button { font: inherit; }
+select { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+
+.options { display: flex; flex-wrap: wrap; gap: 8px 22px; padding: 14px 0 4px; color: var(--muted); font-size: .92rem; }
+.options label { display: inline-flex; gap: 8px; align-items: center; cursor: pointer; }
+.options input { accent-color: var(--accent); width: 16px; height: 16px; }
+
+main.panes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 18px; padding: 12px 0 24px; }
+@media (max-width: 900px) { main.panes { grid-template-columns: minmax(0, 1fr); } }
+.pane { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.pane-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px 8px 14px; border-bottom: 1px solid var(--line); min-height: 50px; flex-wrap: wrap; }
+.pane-title { font-weight: 700; }
+.pane-title small { font-weight: 400; color: var(--muted); margin-left: 6px; }
+
+.editor { display: grid; grid-template-columns: auto minmax(0, 1fr); height: clamp(380px, 64vh, 720px); background: var(--code-bg); }
+.gutter { background: var(--gutter); color: var(--muted); text-align: right; padding: 12px 8px 12px 10px; font-size: 13px; line-height: 20px; overflow: hidden; user-select: none; font-family: "JetBrains Mono", ui-monospace, Consolas, monospace; }
+.gutter div.bad { color: var(--err-ink); background: var(--err-bg); font-weight: 600; margin: 0 -8px 0 -10px; padding: 0 8px 0 10px; }
+textarea#java { border: 0; outline: none; resize: none; margin: 0; padding: 12px 14px; font-size: 13px; line-height: 20px; color: var(--ink); background: transparent; white-space: pre; overflow: auto; tab-size: 4; }
+textarea#java:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+
+.status { padding: 10px 14px; font-size: .92rem; border-top: 1px solid var(--line); min-height: 44px; }
+.status.ok { color: var(--ok); }
+.status.err { background: var(--err-bg); color: var(--err-ink); }
+
+.tabs { display: flex; gap: 4px; }
+.tab { border: 1px solid transparent; background: transparent; color: var(--muted); padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+.tab[aria-selected="true"] { color: var(--ink); border-color: var(--line); background: var(--bg); font-weight: 700; }
+.tab:focus-visible, .btn:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.actions { display: flex; gap: 8px; }
+.btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.btn:disabled { opacity: .5; cursor: default; }
+pre#out { margin: 0; padding: 12px 16px; font-size: 13px; line-height: 20px; overflow: auto; height: clamp(380px, 64vh, 720px); background: var(--code-bg); white-space: pre; }
+pre#out.stale { opacity: .45; }
+.tk-k { color: var(--k); font-weight: 600; }
+.tk-c { color: var(--c); font-style: italic; }
+.tk-s { color: var(--s); }
+.tk-n { color: var(--n); }
+.tk-v { color: var(--v); }
+.run { padding: 10px 14px; border-top: 1px solid var(--line); font-size: .9rem; color: var(--muted); }
+.run code { color: var(--ink); background: var(--bg); padding: 1px 6px; border-radius: 4px; font-size: .85rem; word-break: break-all; }
+
+section.ref { padding: 8px 0 48px; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 28px; }
+@media (max-width: 900px) { section.ref { grid-template-columns: minmax(0, 1fr); } }
+section.ref h2 { font-size: 1.15rem; margin: 0 0 10px; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 700; background: var(--bg); }
+tr:last-child td { border-bottom: 0; }
+td code { font-size: .82rem; white-space: nowrap; }
+ul.limits { margin: 0; padding-left: 1.1em; color: var(--muted); }
+ul.limits li { margin: 4px 0; }
+ul.limits strong { color: var(--ink); }
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 6px; font-size: .9rem; opacity: 0; pointer-events: none; transition: opacity .2s; }
+.toast.show { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div>
+      <h1>Java <span class="arrow" aria-hidden="true">→</span> lenguaje núcleo de Oz</h1>
+      <p class="sub">Escribe un programa Java con métodos static y obtén su traducción al lenguaje núcleo, lista para el Oz interactivo y para OzRun en Docker.</p>
+    </div>
+    <div class="pick">
+      <label for="ejemplo">Cargar un ejemplo</label>
+      <select id="ejemplo"></select>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="options" role="group" aria-label="Opciones de traducción">
+    <label><input type="checkbox" id="optStrict" checked> Núcleo estricto (un <code>local</code> por variable)</label>
+    <label><input type="checkbox" id="optDataflow" checked> Variables que no se reasignan como variables de flujo de datos</label>
+    <label><input type="checkbox" id="optComments" checked> Comentarios con el código Java</label>
+  </div>
+
+  <main class="panes">
+    <section class="pane" aria-label="Código Java">
+      <div class="pane-head">
+        <span class="pane-title">Java<small id="javaInfo"></small></span>
+        <button class="btn" id="btnLimpiar" type="button">Vaciar</button>
+      </div>
+      <div class="editor">
+        <div class="gutter" id="gutter" aria-hidden="true"></div>
+        <textarea id="java" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Código Java"></textarea>
+      </div>
+      <div class="status" id="status" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="pane" aria-label="Código Oz generado">
+      <div class="pane-head">
+        <div class="tabs" role="tablist" aria-label="Destino">
+          <button class="tab" role="tab" id="tabInt" aria-selected="true" type="button">Oz interactivo</button>
+          <button class="tab" role="tab" id="tabFun" aria-selected="false" type="button">OzRun (functor)</button>
+        </div>
+        <div class="actions">
+          <button class="btn" id="btnCopiar" type="button">Copiar</button>
+          <button class="btn primary" id="btnDescargar" type="button" hidden>Descargar .zip</button>
+        </div>
+      </div>
+      <pre id="out" tabindex="0" aria-label="Código Oz generado"></pre>
+      <div class="run" id="run"></div>
+    </section>
+  </main>
+
+  <section class="ref">
+    <div>
+      <h2>Cómo se traduce cada concepto</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Java</th><th>Lenguaje núcleo de Oz</th></tr></thead>
+          <tbody>
+            <tr><td>Variable que nunca se reasigna</td><td>Variable de flujo de datos: <code>local VX in VX = T1 ... end</code></td></tr>
+            <tr><td>Variable que se reasigna</td><td>Celda: <code>{NewCell T1 VX}</code></td></tr>
+            <tr><td>Leer <code>x</code> (celda)</td><td><code>{Exchange VX T T}</code></td></tr>
+            <tr><td><code>x = e</code></td><td><code>{Exchange VX Viejo Nuevo}</code></td></tr>
+            <tr><td>Método static</td><td>Procedimiento: <code>PNombre = proc {$ VA VB Res} ... end</code>, con <code>Res</code> como salida</td></tr>
+            <tr><td><code>while</code>, <code>for</code>, <code>do-while</code></td><td>Procedimiento con recursión de cola: <code>Ciclo1 = proc {$} ... {Ciclo1} end</code></td></tr>
+            <tr><td><code>return</code>, <code>break</code>, <code>continue</code> a mitad de bloque</td><td>El resto del bloque pasa a un procedimiento continuación <code>K1 = proc {$} ... end</code></td></tr>
+            <tr><td><code>a + b</code>, <code>a &lt; b</code>, <code>a / b</code></td><td><code>{Number.'+' A B T}</code>, <code>{Value.'&lt;' A B T}</code>, <code>{Int.'div' A B T}</code></td></tr>
+            <tr><td><code>&amp;&amp;</code>, <code>||</code>, <code>?:</code></td><td><code>if A then ... else ... end</code> (evaluación en cortocircuito)</td></tr>
+            <tr><td>Campo <code>static</code></td><td>Celda global <code>GNombre</code> (o variable de flujo de datos si nunca cambia)</td></tr>
+            <tr><td><code>System.out.println(s)</code></td><td><code>{System.showInfo S}</code>, con cadenas unidas con <code>'#'(A B)</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div>
+      <h2>Qué admite el traductor</h2>
+      <ul class="limits">
+        <li><strong>Tipos:</strong> <code>int</code>, <code>long</code>, <code>double</code>, <code>boolean</code> y <code>String</code> (solo para concatenar e imprimir).</li>
+        <li><strong>Estructura:</strong> una clase con métodos y campos <code>static</code>, y un <code>main(String[] args)</code>.</li>
+        <li><strong>Instrucciones:</strong> declaraciones, asignaciones (<code>=</code>, <code>+=</code>, <code>++</code>…), <code>if</code>, <code>while</code>, <code>do-while</code>, <code>for</code>, <code>return</code>, <code>break</code>, <code>continue</code> y llamadas a métodos.</li>
+        <li><strong>Biblioteca:</strong> <code>System.out.println</code>, <code>System.out.print</code>, <code>Math.max</code>, <code>Math.min</code> y <code>Math.abs</code>.</li>
+        <li><strong>No admite:</strong> objetos, arreglos, <code>switch</code>, excepciones, <code>char</code>, conversiones de tipo ni sobrecarga de métodos.</li>
+        <li><strong>Diferencias de salida:</strong> los <code>double</code> con muchos decimales se muestran con menos cifras en Oz, y los enteros no se desbordan como en Java.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+// ============================================================================
+// Traductor de un subconjunto de Java al lenguaje núcleo de Oz
+// ============================================================================
+(function (global) {
+'use strict';
+
+class TradError extends Error {
+  constructor(msg, line) { super(msg); this.line = line; }
+}
+
+// ------------------------------- Léxico -------------------------------------
+const KEYWORDS = new Set(['class','public','private','protected','static','final','void','int','long',
+  'boolean','double','float','short','byte','char','String','if','else','while','do','for','return',
+  'break','continue','true','false','new','import','package','null','this','abstract','interface',
+  'extends','implements','switch','case','try','catch','throw','var']);
+
+function lex(src) {
+  const toks = []; let i = 0, line = 1;
+  const push = (type, value, start) => toks.push({ type, value, line, start, end: i });
+  while (i < src.length) {
+    const c = src[i];
+    if (c === '\n') { line++; i++; continue; }
+    if (/\s/.test(c)) { i++; continue; }
+    if (src.startsWith('//', i)) { while (i < src.length && src[i] !== '\n') i++; continue; }
+    if (src.startsWith('/*', i)) {
+      const e = src.indexOf('*/', i + 2);
+      if (e < 0) throw new TradError('Comentario /* sin cerrar', line);
+      for (let k = i; k < e; k++) if (src[k] === '\n') line++;
+      i = e + 2; continue;
+    }
+    const start = i;
+    if (/[A-Za-z_$]/.test(c)) {
+      while (i < src.length && /[A-Za-z0-9_$]/.test(src[i])) i++;
+      const w = src.slice(start, i);
+      push(KEYWORDS.has(w) ? 'kw' : 'id', w, start); continue;
+    }
+    if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(src[i + 1] || ''))) {
+      while (i < src.length && /[0-9_]/.test(src[i])) i++;
+      let isFloat = false;
+      if (src[i] === '.' && /[0-9]/.test(src[i + 1] || '')) { isFloat = true; i++; while (/[0-9_]/.test(src[i] || '')) i++; }
+      else if (src[i] === '.' && !/[A-Za-z]/.test(src[i + 1] || '')) { isFloat = true; i++; }
+      if (/[eE]/.test(src[i] || '')) { isFloat = true; i++; if (/[+-]/.test(src[i])) i++; while (/[0-9]/.test(src[i] || '')) i++; }
+      let text = src.slice(start, i).replace(/_/g, '');
+      if (/[fFdD]/.test(src[i] || '')) { isFloat = true; i++; }
+      else if (/[lL]/.test(src[i] || '')) { i++; }
+      push(isFloat ? 'float' : 'int', text, start); continue;
+    }
+    if (c === '"') {
+      i++; let s = '';
+      while (i < src.length && src[i] !== '"') {
+        if (src[i] === '\n') throw new TradError('Cadena sin cerrar', line);
+        if (src[i] === '\\') {
+          const n = src[i + 1];
+          const map = { n: '\n', t: '\t', '"': '"', '\\': '\\', "'": "'", r: '\r' };
+          if (!(n in map)) throw new TradError('Secuencia de escape no soportada: \\' + n, line);
+          s += map[n]; i += 2;
+        } else s += src[i++];
+      }
+      if (src[i] !== '"') throw new TradError('Cadena sin cerrar', line);
+      i++; push('str', s, start); continue;
+    }
+    if (c === "'") throw new TradError('Los literales de tipo char no están soportados', line);
+    const ops = ['>>>=','<<=','>>=','>>>','++','--','+=','-=','*=','/=','%=','==','!=','<=','>=','&&','||','<<','>>',
+      '+','-','*','/','%','<','>','=','!','?',':','(',')','{','}','[',']',';',',','.','&','|','^','~','@'];
+    const op = ops.find(o => src.startsWith(o, i));
+    if (!op) throw new TradError('Carácter no reconocido: ' + c, line);
+    i += op.length; push('op', op, start);
+  }
+  toks.push({ type: 'eof', value: '<fin>', line, start: i, end: i });
+  return toks;
+}
+
+// ------------------------------- Sintaxis -----------------------------------
+const PRIM_TYPES = new Set(['int', 'long', 'short', 'byte', 'boolean', 'double', 'float', 'String', 'void']);
+
+function parse(src) {
+  const t = lex(src); let p = 0;
+  const peek = (k = 0) => t[p + k];
+  const is = (v, k = 0) => t[p + k].value === v && t[p + k].type !== 'str';
+  const err = (msg, tok = peek()) => { throw new TradError(msg, tok.line); };
+  const next = () => t[p++];
+  const expect = v => { if (!is(v)) err(`Se esperaba "${v}" y se encontró "${peek().value}"`); return next(); };
+  const ident = () => { if (peek().type !== 'id') err(`Se esperaba un identificador y se encontró "${peek().value}"`); return next().value; };
+
+  function typeName(allowArray = false) {
+    const tok = peek();
+    if (tok.value === 'var') err('La inferencia de tipos con "var" no está soportada; declare el tipo explícitamente');
+    if (tok.type === 'id') err(`Tipo no soportado: "${tok.value}". Solo se admiten int, long, double, boolean y String`);
+    if (!PRIM_TYPES.has(tok.value)) err(`Se esperaba un tipo y se encontró "${tok.value}"`);
+    next();
+    let ty = tok.value;
+    if (['long', 'short', 'byte'].includes(ty)) ty = 'int';
+    if (ty === 'float') ty = 'double';
+    if (is('[')) {
+      if (!allowArray) err('Los arreglos no están soportados');
+      next(); expect(']'); ty += '[]';
+    }
+    if (is('<')) err('Los tipos genéricos no están soportados');
+    return ty;
+  }
+  const isTypeStart = () => PRIM_TYPES.has(peek().value) && peek().type === 'kw' && peek().value !== 'void'
+    || (peek().value === 'final');
+
+  function program() {
+    while (is('import') || is('package')) { while (!is(';')) next(); next(); }
+    const methods = [], fields = [];
+    let className = null;
+    while (peek().type !== 'eof') {
+      while (['public', 'private', 'protected', 'final', 'abstract', 'static'].includes(peek().value)) next();
+      if (is('interface') || is('enum')) err('Las interfaces y enumeraciones no están soportadas');
+      expect('class');
+      const cn = ident(); if (!className) className = cn;
+      if (is('extends') || is('implements')) err('La herencia y las interfaces no están soportadas en esta traducción');
+      expect('{');
+      while (!is('}')) {
+        if (peek().type === 'eof') err('Falta "}" al final de la clase');
+        const mods = [];
+        while (['public', 'private', 'protected', 'final', 'static', 'abstract'].includes(peek().value)) mods.push(next().value);
+        const startTok = peek();
+        if (peek().type === 'id' && is('(', 1)) err('Los constructores no están soportados: solo se traducen métodos y campos static', startTok);
+        if (is('class')) err('Las clases anidadas no están soportadas');
+        if (!mods.includes('static')) err('Solo se admiten métodos y campos static (programa sin objetos)', startTok);
+        const ty = typeName();
+        const name = ident();
+        if (is('(')) {
+          next();
+          const params = [];
+          while (!is(')')) {
+            while (is('final')) next();
+            const pt = typeName(true);
+            const pn = ident();
+            params.push({ type: pt, name: pn, line: startTok.line });
+            if (!is(')')) expect(',');
+          }
+          next();
+          if (is('throws')) err('La cláusula throws no está soportada');
+          const body = block();
+          methods.push({ name, ret: ty, params, body, line: startTok.line });
+        } else {
+          let fname = name;
+          for (;;) {
+            let init = null;
+            if (is('=')) { next(); init = expr(); }
+            fields.push({ name: fname, type: ty, init, line: startTok.line, final: mods.includes('final') });
+            if (!is(',')) break;
+            next(); fname = ident();
+          }
+          expect(';');
+        }
+      }
+      next();
+    }
+    if (!className) err('No se encontró ninguna clase');
+    return { className, methods, fields };
+  }
+
+  function block() {
+    const s = expect('{'); const stmts = [];
+    while (!is('}')) { if (peek().type === 'eof') err('Falta "}"', s); stmts.push(...statement()); }
+    next();
+    return { type: 'Block', stmts, line: s.line };
+  }
+
+  function snippet(startTok, endTok) {
+    return src.slice(startTok.start, endTok.end).replace(/\s+/g, ' ').trim();
+  }
+  function headerSnippet(startTok) {
+    // desde el inicio hasta el paréntesis que cierra la condición
+    let depth = 0, k = p; const begin = startTok.start; let endPos = startTok.end;
+    for (let j = t.indexOf(startTok); j < t.length; j++) {
+      if (t[j].value === '(') depth++;
+      if (t[j].value === ')') { depth--; if (depth === 0) { endPos = t[j].end; break; } }
+      if (t[j].value === '{' || t[j].value === ';') { endPos = t[j].start; break; }
+    }
+    return src.slice(begin, endPos).replace(/\s+/g, ' ').trim();
+  }
+
+  // Devuelve una lista (una declaración con varias variables produce varias)
+  function statement() {
+    const st = peek();
+    if (is('{')) return [block()];
+    if (is(';')) { next(); return []; }
+    if (is('if')) {
+      next(); expect('('); const cond = expr(); expect(')');
+      const then = asBlock(statement());
+      let els = null;
+      if (is('else')) { next(); els = asBlock(statement()); }
+      return [{ type: 'If', cond, then, els, line: st.line, src: headerSnippet(st) }];
+    }
+    if (is('while')) {
+      next(); expect('('); const cond = expr(); expect(')');
+      const body = asBlock(statement());
+      return [{ type: 'While', cond, body, line: st.line, src: headerSnippet(st) }];
+    }
+    if (is('do')) {
+      next(); const body = asBlock(statement()); expect('while'); expect('('); const cond = expr(); expect(')'); expect(';');
+      return [{ type: 'DoWhile', cond, body, line: st.line, src: 'do { ... } while (...)' }];
+    }
+    if (is('for')) {
+      next(); expect('(');
+      if (isTypeStart() && is(':', 2)) err('El for-each no está soportado');
+      let init = [];
+      if (!is(';')) init = isTypeStart() ? varDecl() : exprStatementList(';');
+      expect(';');
+      const cond = is(';') ? { type: 'Bool', value: true, line: st.line } : expr();
+      expect(';');
+      const update = is(')') ? [] : exprStatementList(')');
+      expect(')');
+      const body = asBlock(statement());
+      return [{ type: 'For', init, cond, update, body, line: st.line, src: headerSnippet(st) }];
+    }
+    if (is('return')) {
+      next(); const e = is(';') ? null : expr(); const end = expect(';');
+      return [{ type: 'Return', expr: e, line: st.line, src: snippet(st, end) }];
+    }
+    if (is('break')) { next(); if (peek().type === 'id') err('Las etiquetas no están soportadas'); const end = expect(';'); return [{ type: 'Break', line: st.line, src: 'break;' }]; }
+    if (is('continue')) { next(); if (peek().type === 'id') err('Las etiquetas no están soportadas'); expect(';'); return [{ type: 'Continue', line: st.line, src: 'continue;' }]; }
+    if (is('switch')) err('La instrucción switch no está soportada');
+    if (is('try') || is('throw')) err('Las excepciones no están soportadas');
+    if (isTypeStart()) { const d = varDecl(); const end = expect(';'); d.forEach(x => x.src = x.src || snippet(st, end)); return d; }
+    const list = exprStatementList(';'); const end = expect(';');
+    list.forEach(x => x.src = snippet(st, end));
+    return list;
+  }
+  function asBlock(list) { return list.length === 1 && list[0].type === 'Block' ? list[0] : { type: 'Block', stmts: list, line: list[0] ? list[0].line : 0 }; }
+
+  function varDecl() {
+    const st = peek();
+    let fin = false; while (is('final')) { next(); fin = true; }
+    const ty = typeName();
+    if (ty === 'void') err('Una variable no puede ser de tipo void');
+    const out = [];
+    for (;;) {
+      const nTok = peek(); const name = ident();
+      let init = null;
+      if (is('=')) { next(); init = expr(); }
+      out.push({ type: 'VarDecl', vtype: ty, name, init, line: nTok.line });
+      if (!is(',')) break; next();
+    }
+    if (out.length > 1) out.forEach(d => d.src = `${ty} ${d.name}${d.init ? ' = ...' : ''};`);
+    return out;
+  }
+
+  function exprStatementList(stop) {
+    const out = [];
+    for (;;) { out.push(exprStatement()); if (!is(',')) break; next(); }
+    return out;
+  }
+  function exprStatement() {
+    const st = peek();
+    if (is('++') || is('--')) { const op = next().value; const name = ident(); return { type: 'Compound', name, op: op[0], expr: { type: 'Int', value: '1', line: st.line }, line: st.line }; }
+    if (peek().type === 'id' && (is('++', 1) || is('--', 1))) { const name = ident(); const op = next().value; return { type: 'Compound', name, op: op[0], expr: { type: 'Int', value: '1', line: st.line }, line: st.line }; }
+    if (peek().type === 'id' && is('=', 1)) { const name = ident(); next(); return { type: 'Assign', name, expr: expr(), line: st.line }; }
+    if (peek().type === 'id' && ['+=', '-=', '*=', '/=', '%='].some(o => is(o, 1))) {
+      const name = ident(); const op = next().value[0]; return { type: 'Compound', name, op, expr: expr(), line: st.line };
+    }
+    const e = expr();
+    if (e.type !== 'Call') err('Esta expresión no puede usarse como instrucción', st);
+    return { type: 'ExprStmt', expr: e, line: st.line };
+  }
+
+  // Expresiones, de menor a mayor precedencia
+  function expr() { return ternary(); }
+  function ternary() {
+    const c = orExpr();
+    if (is('?')) { const l = next().line; const a = expr(); expect(':'); const b = ternary(); return { type: 'Cond', cond: c, a, b, line: l }; }
+    if (is('=') || ['+=', '-=', '*=', '/=', '%='].some(o => is(o))) err('La asignación solo se admite como instrucción, no dentro de una expresión');
+    return c;
+  }
+  const binLevel = (ops, nextFn) => () => {
+    let l = nextFn();
+    while (ops.some(o => is(o)) && peek().type === 'op') { const tk = next(); l = { type: 'Bin', op: tk.value, l, r: nextFn(), line: tk.line }; }
+    return l;
+  };
+  const unary = () => {
+    const tk = peek();
+    if (is('!')) { next(); return { type: 'Un', op: '!', e: unary(), line: tk.line }; }
+    if (is('-')) { next(); return { type: 'Un', op: '-', e: unary(), line: tk.line }; }
+    if (is('+')) { next(); return unary(); }
+    if (is('++') || is('--')) err('Los operadores ++ y -- solo se admiten como instrucción');
+    if (is('(') && PRIM_TYPES.has(peek(1).value) && is(')', 2)) err('Las conversiones de tipo (cast) no están soportadas');
+    if (is('~') || is('&') || is('|') || is('^')) err('Los operadores de bits no están soportados');
+    return postfix();
+  };
+  const mul = binLevel(['*', '/', '%'], unary);
+  const add = binLevel(['+', '-'], mul);
+  const rel = () => {
+    let l = add();
+    while ((is('<') || is('>') || is('<=') || is('>=')) && peek().type === 'op') { const tk = next(); l = { type: 'Bin', op: tk.value, l, r: add(), line: tk.line }; }
+    if (is('<<') || is('>>') || is('>>>')) err('Los operadores de bits no están soportados');
+    return l;
+  };
+  const eq = binLevel(['==', '!='], rel);
+  const andE = binLevel(['&&'], eq);
+  const orExpr = binLevel(['||'], andE);
+
+  function postfix() {
+    const tk = peek();
+    if (tk.type === 'int') { next(); return { type: 'Int', value: tk.value, line: tk.line }; }
+    if (tk.type === 'float') { next(); return { type: 'Float', value: tk.value, line: tk.line }; }
+    if (tk.type === 'str') { next(); return { type: 'Str', value: tk.value, line: tk.line }; }
+    if (is('true') || is('false')) { next(); return { type: 'Bool', value: tk.value === 'true', line: tk.line }; }
+    if (is('null')) err('null no está soportado');
+    if (is('new')) err('La creación de objetos y arreglos con new no está soportada');
+    if (is('this')) err('this no está soportado: el programa debe usar solo métodos static');
+    if (is('(')) { next(); const e = expr(); expect(')'); return e; }
+    if (tk.type === 'id' || tk.value === 'String') {
+      next(); let name = tk.value;
+      while (is('.')) { next(); name += '.' + ident(); }
+      if (is('(')) {
+        next(); const args = [];
+        while (!is(')')) { args.push(expr()); if (!is(')')) expect(','); }
+        next();
+        if (is('.')) err('El encadenamiento de llamadas no está soportado');
+        return { type: 'Call', name, args, line: tk.line };
+      }
+      if (name.includes('.')) err(`El acceso a "${name}" no está soportado`, tk);
+      if (is('[')) err('Los arreglos no están soportados');
+      return { type: 'Var', name, line: tk.line };
+    }
+    err(`Expresión inesperada: "${tk.value}"`);
+  }
+
+  return program();
+}
+
+// -------------------------- Análisis y generación ---------------------------
+const cap = s => s.replace(/\$/g, '_').replace(/^./, c => c.toUpperCase());
+const IND = '   ';
+const indent = lines => lines.map(l => l === '' ? l : IND + l);
+const ensure = lines => lines.length ? lines : ['skip'];
+
+function translate(src, opts = {}) {
+  const o = Object.assign({ strict: true, comments: true, dataflow: true }, opts);
+  const prog = parse(src);
+  const err = (msg, line) => { throw new TradError(msg, line); };
+
+  // Métodos
+  const methods = new Map();
+  const usedGlobal = new Set();
+  const globalName = (prefix, n) => { let b = prefix + cap(n), k = b, i = 2; while (usedGlobal.has(k)) k = b + (i++); usedGlobal.add(k); return k; };
+  for (const m of prog.methods) {
+    if (methods.has(m.name)) err(`La sobrecarga de métodos no está soportada ("${m.name}")`, m.line);
+    const isMain = m.name === 'main' && m.params.length === 1 && m.params[0].type === 'String[]';
+    for (const pr of m.params) if (pr.type.endsWith('[]') && !isMain) err('Los arreglos no están soportados', m.line);
+    if (m.ret.endsWith('[]')) err('Los arreglos no están soportados', m.line);
+    methods.set(m.name, { ...m, oz: globalName('P', m.name), isMain, params: isMain ? [] : m.params, argsName: isMain ? m.params[0].name : null });
+  }
+  const main = methods.get('main');
+  if (!main || !main.isMain) err('Se necesita un método public static void main(String[] args)', 1);
+
+  // Mutabilidad: nombres asignados después de su declaración
+  function assignedNames(node, set) {
+    if (!node || typeof node !== 'object') return set;
+    if (Array.isArray(node)) { node.forEach(n => assignedNames(n, set)); return set; }
+    if (node.type === 'Assign' || node.type === 'Compound') set.add(node.name);
+    if (node.type === 'VarDecl' && !node.init) set.add(node.name);
+    for (const k of Object.keys(node)) if (k !== 'type' && typeof node[k] === 'object') assignedNames(node[k], set);
+    return set;
+  }
+  const globallyAssigned = new Set();
+  for (const m of prog.methods) assignedNames(m.body, globallyAssigned);
+
+  // Campos static
+  const fields = new Map();
+  for (const f of prog.fields) {
+    if (fields.has(f.name)) err(`Campo duplicado "${f.name}"`, f.line);
+    if (f.type.endsWith('[]')) err('Los arreglos no están soportados', f.line);
+    fields.set(f.name, { name: f.name, oz: globalName('G', f.name), type: f.type, mutable: !o.dataflow || globallyAssigned.has(f.name) || !f.init, field: true, init: f.init, line: f.line });
+  }
+  let usaTexto = false;
+
+  // ----------------------------- Expresiones -----------------------------
+  function genMethod(m) {
+    let tc = 0, kc = 0, lc = 0;
+    const fresh = () => 'T' + (++tc);
+    const freshK = () => 'K' + (++kc);
+    const freshL = () => 'Ciclo' + (++lc);
+    const assigned = assignedNames(m.body, new Set());
+    const isMut = n => !o.dataflow || assigned.has(n);
+    const usedLocal = new Set();
+    const localName = n => { let b = 'V' + cap(n), k = b, i = 2; while (usedLocal.has(k) || usedGlobal.has(k)) k = b + (i++); usedLocal.add(k); return k; };
+    const W = (vars, body) => {
+      if (!vars.length) return body;
+      if (!o.strict) return [`local ${vars.join(' ')} in`, ...indent(body), 'end'];
+      let b = body;
+      for (let i = vars.length - 1; i >= 0; i--) b = [`local ${vars[i]} in`, ...indent(b), 'end'];
+      return b;
+    };
+    const lookup = (ctx, n, line) => {
+      if (ctx.vars.has(n)) return ctx.vars.get(n);
+      if (fields.has(n)) return fields.get(n);
+      if (n === m.argsName) err('El uso del parámetro args no está soportado', line);
+      err(`Variable no declarada: "${n}"`, line);
+    };
+    const R = (code, v, temps, type) => ({ code, v, temps, type });
+
+    // convierte un resultado numérico entero a double si hace falta
+    function coerce(r, to, line) {
+      if (to === r.type || (to === 'String')) return r;
+      if (to === 'double' && r.type === 'int') { const t = fresh(); return R([...r.code, `{IntToFloat ${r.v} ${t}}`], t, [...r.temps, t], 'double'); }
+      err(`No se puede usar un valor de tipo ${r.type} donde se espera ${to}`, line);
+    }
+    function toText(r) {
+      if (r.type === 'String') return r;
+      usaTexto = true;
+      const t = fresh();
+      return R([...r.code, `{PTextoJava ${r.v} ${t}}`], t, [...r.temps, t], 'String');
+    }
+
+    function ex(e, ctx) {
+      switch (e.type) {
+        case 'Int': { const t = fresh(); return R([`${t} = ${e.value}`], t, [t], 'int'); }
+        case 'Float': {
+          let s = String(Number(e.value));
+          if (!/[.e]/.test(s)) s += '.0';
+          if (/e/.test(s) && !/\./.test(s.split('e')[0])) s = s.replace('e', '.0e');
+          s = s.replace('e+', 'e').replace('e-', 'e~');
+          const t = fresh(); return R([`${t} = ${s}`], t, [t], 'double');
+        }
+        case 'Bool': { const t = fresh(); return R([`${t} = ${e.value}`], t, [t], 'boolean'); }
+        case 'Str': { const t = fresh(); return R([`${t} = ${ozString(e.value)}`], t, [t], 'String'); }
+        case 'Var': {
+          const v = lookup(ctx, e.name, e.line);
+          if (!v.mutable) return R([], v.oz, [], v.type);
+          const t = fresh(); return R([`{Exchange ${v.oz} ${t} ${t}}`], t, [t], v.type);
+        }
+        case 'Un': {
+          const a = ex(e.e, ctx); const t = fresh();
+          if (e.op === '!') { if (a.type !== 'boolean') err('El operador ! requiere un boolean', e.line); return R([...a.code, `{Bool.'not' ${a.v} ${t}}`], t, [...a.temps, t], 'boolean'); }
+          if (!['int', 'double'].includes(a.type)) err('El operador - requiere un número', e.line);
+          return R([...a.code, `{Number.'~' ${a.v} ${t}}`], t, [...a.temps, t], a.type);
+        }
+        case 'Bin': return bin(e, ctx);
+        case 'Cond': {
+          const c = ex(e.cond, ctx); if (c.type !== 'boolean') err('La condición del operador ?: debe ser boolean', e.line);
+          let a = ex(e.a, ctx), b = ex(e.b, ctx);
+          let ty = a.type;
+          if (a.type !== b.type) {
+            if ([a.type, b.type].every(x => ['int', 'double'].includes(x))) { ty = 'double'; a = coerce(a, 'double', e.line); b = coerce(b, 'double', e.line); }
+            else if ([a.type, b.type].includes('String')) { ty = 'String'; a = toText(a); b = toText(b); }
+            else err('Las dos ramas de ?: tienen tipos incompatibles', e.line);
+          }
+          const t = fresh();
+          return R([...c.code, `if ${c.v} then`, ...indent([...a.code, `${t} = ${a.v}`]), 'else', ...indent([...b.code, `${t} = ${b.v}`]), 'end'], t, [...c.temps, ...a.temps, ...b.temps, t], ty);
+        }
+        case 'Call': return call(e, ctx, true);
+        case 'Str': break;
+      }
+      err('Expresión no soportada', e.line);
+    }
+
+    function bin(e, ctx) {
+      const op = e.op;
+      if (op === '&&' || op === '||') {
+        const a = ex(e.l, ctx), b = ex(e.r, ctx);
+        if (a.type !== 'boolean' || b.type !== 'boolean') err(`El operador ${op} requiere operandos boolean`, e.line);
+        const t = fresh();
+        const evalB = [...b.code, `${t} = ${b.v}`];
+        const code = op === '&&'
+          ? [...a.code, `if ${a.v} then`, ...indent(evalB), 'else', `${IND}${t} = false`, 'end']
+          : [...a.code, `if ${a.v} then`, `${IND}${t} = true`, 'else', ...indent(evalB), 'end'];
+        return R(code, t, [...a.temps, ...b.temps, t], 'boolean');
+      }
+      let a = ex(e.l, ctx), b = ex(e.r, ctx);
+      if (op === '+' && (a.type === 'String' || b.type === 'String')) {
+        a = toText(a); b = toText(b);
+        const t = fresh();
+        return R([...a.code, ...b.code, `${t} = '#'(${a.v} ${b.v})`], t, [...a.temps, ...b.temps, t], 'String');
+      }
+      if (op === '==' || op === '!=') {
+        if (a.type !== b.type) {
+          if ([a.type, b.type].every(x => ['int', 'double'].includes(x))) { a = coerce(a, 'double', e.line); b = coerce(b, 'double', e.line); }
+          else err(`No se pueden comparar valores de tipo ${a.type} y ${b.type}`, e.line);
+        }
+        if (a.type === 'String') err('La comparación de cadenas con == no está soportada', e.line);
+        const t = fresh();
+        return R([...a.code, ...b.code, `{Value.'${op === '==' ? '==' : '\\\\='}' ${a.v} ${b.v} ${t}}`], t, [...a.temps, ...b.temps, t], 'boolean');
+      }
+      if (![a.type, b.type].every(x => ['int', 'double'].includes(x))) err(`El operador ${op} requiere operandos numéricos`, e.line);
+      let ty = 'int';
+      if (a.type === 'double' || b.type === 'double') { ty = 'double'; a = coerce(a, 'double', e.line); b = coerce(b, 'double', e.line); }
+      const t = fresh();
+      const rel = { '<': "Value.'<'", '<=': "Value.'=<'", '>': "Value.'>'", '>=': "Value.'>='" };
+      let f, rt = ty;
+      if (rel[op]) { f = rel[op]; rt = 'boolean'; }
+      else if (op === '+') f = "Number.'+'";
+      else if (op === '-') f = "Number.'-'";
+      else if (op === '*') f = "Number.'*'";
+      else if (op === '/') f = ty === 'int' ? "Int.'div'" : "Float.'/'";
+      else if (op === '%') { if (ty !== 'int') err('El operador % solo está soportado para enteros', e.line); f = "Int.'mod'"; }
+      else err(`Operador no soportado: ${op}`, e.line);
+      return R([...a.code, ...b.code, `{${f} ${a.v} ${b.v} ${t}}`], t, [...a.temps, ...b.temps, t], rt);
+    }
+
+    function call(e, ctx, needValue) {
+      const MATH = { 'Math.max': 'Max', 'Math.min': 'Min', 'Math.abs': 'Abs' };
+      if (MATH[e.name]) {
+        const n = e.name === 'Math.abs' ? 1 : 2;
+        if (e.args.length !== n) err(`${e.name} recibe ${n} argumento(s)`, e.line);
+        let as = e.args.map(a => ex(a, ctx));
+        if (as.some(a => !['int', 'double'].includes(a.type))) err(`${e.name} requiere argumentos numéricos`, e.line);
+        let ty = as.some(a => a.type === 'double') ? 'double' : 'int';
+        as = as.map(a => coerce(a, ty, e.line));
+        const t = fresh();
+        return R([...as.flatMap(a => a.code), `{${MATH[e.name]} ${as.map(a => a.v).join(' ')} ${t}}`], t, [...as.flatMap(a => a.temps), t], ty);
+      }
+      if (e.name === 'System.out.println' || e.name === 'System.out.print') {
+        if (needValue) err(`${e.name} no devuelve un valor`, e.line);
+        if (e.args.length > 1) err(`${e.name} recibe a lo sumo un argumento`, e.line);
+        let a;
+        if (e.args.length === 0) { const t = fresh(); a = R([`${t} = ""`], t, [t], 'String'); }
+        else a = toText(ex(e.args[0], ctx));
+        const proc = e.name.endsWith('println') ? 'System.showInfo' : 'System.printInfo';
+        return R([...a.code, `{${proc} ${a.v}}`], null, a.temps, 'void');
+      }
+      if (e.name.includes('.')) err(`El método "${e.name}" no está soportado`, e.line);
+      const mm = methods.get(e.name);
+      if (!mm) err(`Método no definido: "${e.name}"`, e.line);
+      if (mm.isMain) err('No se puede llamar a main', e.line);
+      if (mm.params.length !== e.args.length) err(`"${e.name}" espera ${mm.params.length} argumento(s)`, e.line);
+      const as = e.args.map((a, i) => {
+        const r = ex(a, ctx); const pt = mm.params[i].type;
+        if (pt === 'String' && r.type !== 'String') err(`El argumento ${i + 1} de "${e.name}" debe ser String`, e.line);
+        if (pt === 'boolean' && r.type !== 'boolean') err(`El argumento ${i + 1} de "${e.name}" debe ser boolean`, e.line);
+        if (pt === 'int' && r.type !== 'int') err(`El argumento ${i + 1} de "${e.name}" debe ser int`, e.line);
+        return coerce(r, pt, e.line);
+      });
+      const code = as.flatMap(a => a.code), temps = as.flatMap(a => a.temps);
+      if (mm.ret === 'void') {
+        if (needValue) err(`El método "${e.name}" es void y no devuelve un valor`, e.line);
+        return R([...code, `{${mm.oz}${as.map(a => ' ' + a.v).join('')}}`], null, temps, 'void');
+      }
+      const t = fresh();
+      return R([...code, `{${mm.oz}${as.map(a => ' ' + a.v).join('')} ${t}}`], t, [...temps, t], mm.ret);
+    }
+
+    // ----------------------------- Instrucciones -----------------------------
+    const jumps = s => {
+      if (!s) return false;
+      switch (s.type) {
+        case 'Return': case 'Break': case 'Continue': return true;
+        case 'If': return jumps(s.then) || jumps(s.els);
+        case 'Block': return s.stmts.some(jumps);
+        case 'While': case 'DoWhile': case 'For': case 'ForLoop': return hasReturn(s.body);
+        default: return false;
+      }
+    };
+    const hasReturn = s => {
+      if (!s) return false;
+      if (s.type === 'Return') return true;
+      if (s.type === 'Block') return s.stmts.some(hasReturn);
+      if (s.type === 'If') return hasReturn(s.then) || hasReturn(s.els);
+      if (['While', 'DoWhile', 'For', 'ForLoop'].includes(s.type)) return hasReturn(s.body);
+      return false;
+    };
+    const cm = s => (o.comments && s.src) ? [`% ${s.src.length > 90 ? s.src.slice(0, 87) + '...' : s.src}`] : [];
+
+    function seq(stmts, i, after, ctx) {
+      if (i >= stmts.length) return after;
+      const s = stmts[i];
+      if (s.type === 'Return') return [...cm(s), ...ret(s, ctx)];
+      if (s.type === 'Break') { if (!ctx.loop) err('break fuera de un ciclo', s.line); return [...cm(s), ...ensure(ctx.loop.brk)]; }
+      if (s.type === 'Continue') { if (!ctx.loop) err('continue fuera de un ciclo', s.line); return [...cm(s), ...ensure(ctx.loop.cont)]; }
+      if (s.type === 'VarDecl') return varDecl(s, stmts, i, after, ctx);
+      if (jumps(s)) {
+        if (i + 1 < stmts.length) {
+          const K = freshK();
+          const rest = ensure(seq(stmts, i + 1, after, ctx));
+          return W([K], [`${K} = proc {$}`, ...indent(rest), 'end', ...stmt(s, [`{${K}}`], ctx)]);
+        }
+        return stmt(s, after, ctx);
+      }
+      const a = stmt(s, [], ctx);
+      return [...a, ...seq(stmts, i + 1, after, ctx)];
+    }
+    const child = ctx => ({ vars: new Map(ctx.vars), loop: ctx.loop, method: ctx.method });
+
+    function varDecl(s, stmts, i, after, ctx) {
+      if (ctx.vars.has(s.name)) err(`La variable "${s.name}" ya está declarada`, s.line);
+      const mut = isMut(s.name);
+      const oz = localName(s.name);
+      let lines = [], temps = [];
+      if (s.init) {
+        let r = ex(s.init, ctx);
+        if (s.vtype === 'String') r = toText(r);
+        else {
+          if (s.vtype === 'boolean' && r.type !== 'boolean') err(`No se puede asignar ${r.type} a una variable boolean`, s.line);
+          if (s.vtype === 'int' && r.type !== 'int') err(`No se puede asignar ${r.type} a una variable int`, s.line);
+          r = coerce(r, s.vtype, s.line);
+        }
+        temps = r.temps;
+        lines = mut ? [...r.code, `{NewCell ${r.v} ${oz}}`] : [...r.code, `${oz} = ${r.v}`];
+      } else {
+        const u = fresh(); temps = [u];
+        lines = [`{NewCell ${u} ${oz}}`];
+      }
+      const c2 = child(ctx);
+      c2.vars.set(s.name, { oz, type: s.vtype, mutable: mut });
+      const rest = seq(stmts, i + 1, after, c2);
+      return W([oz], [...cm(s), ...W(temps, lines), ...rest]);
+    }
+
+    function ret(s, ctx) {
+      const mm = ctx.method;
+      if (!s.expr) { if (mm.ret !== 'void') err('Falta el valor de retorno', s.line); return ['skip']; }
+      if (mm.ret === 'void') err('Un método void no puede devolver un valor', s.line);
+      let r = ex(s.expr, ctx);
+      if (mm.ret === 'String') r = toText(r);
+      else {
+        if (mm.ret !== r.type && !(mm.ret === 'double' && r.type === 'int')) err(`Se esperaba un valor de tipo ${mm.ret}`, s.line);
+        r = coerce(r, mm.ret, s.line);
+      }
+      return W(r.temps, [...r.code, `Res = ${r.v}`]);
+    }
+
+    function assignValue(v, valueVar) {
+      const old = fresh();
+      return { code: [`{Exchange ${v.oz} ${old} ${valueVar}}`], temps: [old] };
+    }
+
+    function stmt(s, after, ctx) {
+      switch (s.type) {
+        case 'Block': return seq(s.stmts, 0, after, child(ctx));
+        case 'If': {
+          const c = ex(s.cond, ctx);
+          if (c.type !== 'boolean') err('La condición del if debe ser boolean', s.line);
+          const th = ensure(stmt(s.then, after, ctx));
+          const el = ensure(s.els ? stmt(s.els, after, ctx) : after);
+          return [...cm(s), ...W(c.temps, [...c.code, `if ${c.v} then`, ...indent(th), 'else', ...indent(el), 'end'])];
+        }
+        case 'While': case 'For': case 'DoWhile': return loop(s, after, ctx);
+        case 'Assign': {
+          const v = lookup(ctx, s.name, s.line);
+          let r = ex(s.expr, ctx);
+          if (v.type === 'String') r = toText(r);
+          else {
+            if (v.type !== r.type && !(v.type === 'double' && r.type === 'int')) err(`No se puede asignar ${r.type} a una variable ${v.type}`, s.line);
+            r = coerce(r, v.type, s.line);
+          }
+          const a = assignValue(v, r.v);
+          return [...cm(s), ...W([...r.temps, ...a.temps], [...r.code, ...a.code]), ...after];
+        }
+        case 'Compound': {
+          const v = lookup(ctx, s.name, s.line);
+          const cur = ex({ type: 'Var', name: s.name, line: s.line }, ctx);
+          const r = bin({ type: 'Bin', op: s.op, l: { type: '_R', r: cur }, r: { type: '_R', r: ex(s.expr, ctx) }, line: s.line }, ctx);
+          if (v.type === 'int' && r.type !== 'int') err(`No se puede asignar ${r.type} a una variable int`, s.line);
+          const a = assignValue(v, r.v);
+          return [...cm(s), ...W([...r.temps, ...a.temps], [...r.code, ...a.code]), ...after];
+        }
+        case 'ExprStmt': {
+          const r = call(s.expr, ctx, false);
+          let code = r.code, temps = r.temps;
+          return [...cm(s), ...W(temps, code), ...after];
+        }
+      }
+      err('Instrucción no soportada', s.line);
+    }
+
+    // Ciclos como procedimientos recursivos (recursión de cola = iteración)
+    function loop(s, after, ctx) {
+      if (s.type === 'For') {
+        const c2 = child(ctx);
+        return [...cm(s), ...seq([...s.init, { type: 'ForLoop', cond: s.cond, update: s.update, body: s.body, line: s.line }], 0, after, c2)
+          .map(x => x)];
+      }
+      return loopCore(s, after, ctx);
+    }
+    function loopCore(s, after, ctx) {
+      const L = freshL();
+      const exit = after;
+      const c2 = child(ctx);
+      const condCheck = (thenLines) => {
+        const c = ex(s.cond, c2);
+        if (c.type !== 'boolean') err('La condición del ciclo debe ser boolean', s.line);
+        return W(c.temps, [...c.code, `if ${c.v} then`, ...indent(thenLines), 'else', ...indent(ensure(exit)), 'end']);
+      };
+      let body;
+      if (s.type === 'DoWhile') {
+        const check = condCheck([`{${L}}`]);
+        c2.loop = { brk: exit, cont: check };
+        body = ensure(seq(s.body.stmts, 0, check, child(c2)));
+      } else {
+        let cont = [`{${L}}`];
+        if (s.type === 'ForLoop' && s.update.length) {
+          const uc = child(c2); uc.loop = null;
+          cont = seq(s.update.map(u => ({ ...u, src: null })), 0, [`{${L}}`], uc);
+        }
+        c2.loop = { brk: exit, cont };
+        const inner = ensure(seq(s.body.stmts, 0, cont, child(c2)));
+        body = condCheck(inner);
+      }
+      const useAfterOutside = false;
+      return W([L], [`${L} = proc {$}`, ...indent(body), 'end', `{${L}}`]);
+    }
+
+    // permite reutilizar resultados ya evaluados dentro de bin()
+    const exOrig = ex;
+    ex = function (e, ctx) { return e.type === '_R' ? e.r : exOrig(e, ctx); };
+
+    // ForLoop interno
+    const stmtOrig = stmt;
+    stmt = function (s, after, ctx) { return s.type === 'ForLoop' ? loopCore(s, after, ctx) : stmtOrig(s, after, ctx); };
+    const jumpsOrig = jumps;
+
+    // ------------------------------ Cabecera --------------------------------
+    const ctx0 = { vars: new Map(), loop: null, method: m };
+    const formals = [], prelude = [];
+    for (const pr of m.params) {
+      if (ctx0.vars.has(pr.name)) err(`Parámetro duplicado "${pr.name}"`, m.line);
+      const mut = isMut(pr.name);
+      if (mut) {
+        const a = 'A' + cap(pr.name); const vz = localName(pr.name);
+        formals.push(a); prelude.push(vz);
+        ctx0.vars.set(pr.name, { oz: vz, type: pr.type, mutable: true, arg: a });
+      } else {
+        const vz = localName(pr.name); formals.push(vz);
+        ctx0.vars.set(pr.name, { oz: vz, type: pr.type, mutable: false });
+      }
+    }
+    if (m.ret !== 'void') formals.push('Res');
+    let body = ensure(seq(m.body.stmts, 0, [], ctx0));
+    // celdas para los parámetros que se reasignan
+    for (const pr of [...m.params].reverse()) {
+      const v = ctx0.vars.get(pr.name);
+      if (v.mutable) body = W([v.oz], [`{NewCell ${v.arg} ${v.oz}}`, ...body]);
+    }
+    const sig = m.isMain ? 'main(String[] args)' : `${m.name}(${m.params.map(p => p.type + ' ' + p.name).join(', ')})`;
+    return [
+      ...(o.comments ? [`% static ${m.ret} ${sig}`] : []),
+      `${m.oz} = proc {$${formals.map(f => ' ' + f).join('')}}`,
+      ...indent(body),
+      'end'
+    ];
+  }
+
+  function ozString(s) {
+    return '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\t/g, '\\t').replace(/\r/g, '\\r') + '"';
+  }
+
+  // ------------------------- Programa completo ---------------------------
+  const procs = [];
+  for (const m of methods.values()) procs.push(...genMethod(m), '');
+
+  // inicialización de campos (después de definir los procedimientos)
+  const fieldInit = [];
+  {
+    const fm = { name: '<campos>', ret: 'void', params: [], body: { type: 'Block', stmts: [] }, isMain: false };
+    let tc = 0;
+    // reutilizamos el generador de expresiones con un método ficticio
+    for (const f of fields.values()) {
+      if (!f.init) {
+        fieldInit.push(...W1([`U${++tc}`], [`{NewCell U${tc} ${f.oz}}`]));
+        continue;
+      }
+      const m = { name: '<campo>', ret: f.type === 'String' ? 'String' : f.type, params: [], isMain: false, oz: '_',
+        body: { type: 'Block', stmts: [{ type: 'Return', expr: f.init, line: f.line }] } };
+      const lines = genMethod(m).filter(l => !l.startsWith('%'));
+      const tmp = `I${cap(f.name)}`;
+      // proc auxiliar que calcula el valor inicial (kernel: llamada a procedimiento)
+      fieldInit.push(...(o.comments ? [`% static ${f.type} ${f.name}`] : []));
+      const inner = [`${tmp}P = proc {$ Res}`, ...lines.slice(1, -1), 'end', `{${tmp}P ${tmp}}`];
+      inner.push(f.mutable ? `{NewCell ${tmp} ${f.oz}}` : `${f.oz} = ${tmp}`);
+      fieldInit.push(...W1([tmp + 'P', tmp], inner));
+    }
+    function W1(vars, body) {
+      if (!o.strict) return [`local ${vars.join(' ')} in`, ...indent(body), 'end'];
+      let b = body; for (let i = vars.length - 1; i >= 0; i--) b = [`local ${vars[i]} in`, ...indent(b), 'end']; return b;
+    }
+  }
+
+  const helperSrc = [
+    'PTextoJava = proc {$ X S}',
+    '   local EsBool in',
+    '      {IsBool X EsBool}',
+    '      if EsBool then',
+    '         if X then S = "true" else S = "false" end',
+    '      else',
+    '         local EsNum in',
+    '            {IsNumber X EsNum}',
+    '            if EsNum then',
+    '               local EsInt in',
+    '                  {IsInt X EsInt}',
+    '                  local Cero in',
+    '                     if EsInt then Cero = 0 else Cero = 0.0 end',
+    '                     local Neg in',
+    '                        {Value.\'<\' X Cero Neg}',
+    '                        if Neg then',
+    '                           local M in',
+    '                              {Number.\'~\' X M}',
+    '                              local T in',
+    '                                 {PTextoJava M T}',
+    '                                 S = \'#\'("-" T)',
+    '                              end',
+    '                           end',
+    '                        else',
+    '                           if EsInt then',
+    '                              S = X',
+    '                           else',
+    '                              local R in',
+    '                                 {Round X R}',
+    '                                 local Entero in',
+    '                                    {Value.\'==\' R X Entero}',
+    '                                    if Entero then',
+    '                                       local I in',
+    '                                          {FloatToInt X I}',
+    '                                          S = \'#\'(I ".0")',
+    '                                       end',
+    '                                    else',
+    '                                       S = X',
+    '                                    end',
+    '                                 end',
+    '                              end',
+    '                           end',
+    '                        end',
+    '                     end',
+    '                  end',
+    '               end',
+    '            else',
+    '               S = X',
+    '            end',
+    '         end',
+    '      end',
+    '   end',
+    'end',
+  ];
+  const helper = usaTexto ? [
+    ...(o.comments ? ['% Convierte un valor al texto que mostraría Java (true/false, signo -, 2.0)'] : []),
+    ...helperSrc, ''
+  ] : [];
+  if (usaTexto) usedGlobal.add('PTextoJava');
+
+  const names = [...(usaTexto ? ['PTextoJava'] : []), ...[...fields.values()].map(f => f.oz), ...[...methods.values()].map(m => m.oz)];
+  const bodyLines = [...helper, ...procs, ...fieldInit, ...(fieldInit.length ? [''] : []), `{${main.oz}}`];
+  const head = [
+    `%% Traducción automática de Java (${prog.className}) al lenguaje núcleo de Oz`,
+    `%% Variables que se reasignan -> celdas (NewCell / Exchange)`,
+    `%% Variables de una sola asignación -> variables de flujo de datos`,
+    `%% Ciclos -> procedimientos con recursión de cola`,
+  ];
+  const interactive = [...head, '', 'declare', ...names, 'in', ...bodyLines].join('\n') + '\n';
+  const functor = [...head, '', 'functor', 'import', `${IND}System`, `${IND}Application`, 'define',
+    ...indent(names), 'in', ...indent(bodyLines), `${IND}{Application.exit 0}`, 'end'].join('\n') + '\n';
+  return { interactive, functor, className: prog.className };
+}
+
+const api = { translate, TradError };
+if (typeof module !== 'undefined') module.exports = api; else global.JavaAOz = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+(function () {
+  const EJEMPLOS = {"Factorial": {"titulo": "Factorial (recursivo e iterativo)", "codigo": "public class Factorial {\n    // Versión recursiva: sin estado\n    static int factorialRec(int n) {\n        if (n <= 1) {\n            return 1;\n        }\n        return n * factorialRec(n - 1);\n    }\n\n    // Versión iterativa: el acumulador es una variable que cambia\n    static int factorialIter(int n) {\n        int resultado = 1;\n        for (int i = 2; i <= n; i++) {\n            resultado = resultado * i;\n        }\n        return resultado;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(\"5! recursivo = \" + factorialRec(5));\n        System.out.println(\"10! iterativo = \" + factorialIter(10));\n    }\n}\n"}, "Fibonacci": {"titulo": "Fibonacci con while", "codigo": "public class Fibonacci {\n    static int fibonacci(int n) {\n        int anterior = 0;\n        int actual = 1;\n        int i = 0;\n        while (i < n) {\n            int siguiente = anterior + actual;\n            anterior = actual;\n            actual = siguiente;\n            i++;\n        }\n        return anterior;\n    }\n\n    public static void main(String[] args) {\n        for (int k = 0; k <= 10; k++) {\n            System.out.print(fibonacci(k) + \" \");\n        }\n        System.out.println();\n    }\n}\n"}, "Primos": {"titulo": "Primos: return, break y continue", "codigo": "public class Primos {\n    // return dentro de un ciclo\n    static boolean esPrimo(int n) {\n        if (n < 2) return false;\n        for (int d = 2; d * d <= n; d++) {\n            if (n % d == 0) {\n                return false;\n            }\n        }\n        return true;\n    }\n\n    public static void main(String[] args) {\n        int encontrados = 0;\n        int n = 0;\n        while (true) {\n            n++;\n            if (!esPrimo(n)) continue;   // salta los compuestos\n            System.out.print(n + \" \");\n            encontrados += 1;\n            if (encontrados == 10) break;\n        }\n        System.out.println();\n        System.out.println(\"Ultimo primo: \" + n);\n    }\n}\n"}, "Contador": {"titulo": "Estado global con campos static", "codigo": "public class Contador {\n    // Estado global: una celda\n    static int llamadas = 0;\n    static final int LIMITE = 3;\n\n    static int siguiente() {\n        llamadas = llamadas + 1;\n        return llamadas;\n    }\n\n    static void reiniciar() {\n        llamadas = 0;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(siguiente());\n        System.out.println(siguiente());\n        System.out.println(\"Llamadas: \" + llamadas + \", limite: \" + LIMITE);\n        reiniciar();\n        System.out.println(\"Tras reiniciar: \" + siguiente());\n    }\n}\n"}, "Numeros": {"titulo": "MCD, do-while, double y ?:", "codigo": "public class Numeros {\n    static int mcd(int a, int b) {\n        while (b != 0) {\n            int r = a % b;\n            a = b;\n            b = r;\n        }\n        return a;\n    }\n\n    static double promedio(int a, int b, int c) {\n        return (a + b + c) / 3.0;\n    }\n\n    static int sumaDigitos(int n) {\n        int suma = 0;\n        do {\n            suma += n % 10;\n            n /= 10;\n        } while (n > 0);\n        return suma;\n    }\n\n    static String signo(int x) {\n        return x > 0 ? \"positivo\" : (x < 0 ? \"negativo\" : \"cero\");\n    }\n\n    public static void main(String[] args) {\n        System.out.println(\"mcd(84, 36) = \" + mcd(84, 36));\n        System.out.println(\"promedio = \" + promedio(4, 5, 6));\n        System.out.println(\"suma de digitos de 9875 = \" + sumaDigitos(9875));\n        System.out.println(\"max = \" + Math.max(-3, 7) + \", abs = \" + Math.abs(-12));\n        int x = -5;\n        boolean par = x % 2 == 0;\n        System.out.println(x + \" es \" + signo(x) + \"; par: \" + par);\n        System.out.println(-17 / 5 + \" \" + -17 % 5);\n    }\n}\n"}, "Anidados": {"titulo": "Ciclos anidados y cadenas", "codigo": "public class Anidados {\n    static int contarParesOrdenados(int n) {\n        int total = 0;\n        for (int i = 1; i <= n; i++) {\n            for (int j = 1; j <= n; j++) {\n                if (j > i) break;          // break del ciclo interno\n                if ((i + j) % 2 != 0) continue;\n                total++;\n            }\n        }\n        return total;\n    }\n\n    static int buscar(int objetivo) {\n        int i = 0;\n        while (i < 100) {\n            int cuadrado = i * i;\n            if (cuadrado == objetivo) {\n                return i;\n            } else if (cuadrado > objetivo) {\n                return -1;\n            }\n            i += 1;\n        }\n        return -1;\n    }\n\n    static void tabla(int n) {\n        for (int i = 1; i <= 3; i++) {\n            System.out.println(n + \" x \" + i + \" = \" + n * i);\n        }\n    }\n\n    public static void main(String[] args) {\n        System.out.println(contarParesOrdenados(4));\n        System.out.println(buscar(49) + \" \" + buscar(50));\n        tabla(7);\n        boolean a = true, b = false;\n        System.out.println(a && !b || b);\n        String s = \"Hola\";\n        s += \", mundo\";\n        System.out.println(s + \" \" + (1 + 2) + 1 + 2);\n    }\n}\n"}};
+  const $ = id => document.getElementById(id);
+  const java = $('java'), gutter = $('gutter'), out = $('out'), status = $('status'), run = $('run');
+  let destino = 'interactive', ultimo = null, clase = 'Programa', errLinea = 0, timer = null;
+
+  // ---------- almacenamiento local (borrador) ----------
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
+
+  // ---------- ejemplos ----------
+  const sel = $('ejemplo');
+  const optVacia = document.createElement('option');
+  optVacia.value = ''; optVacia.textContent = 'Elegir…'; sel.appendChild(optVacia);
+  for (const [k, e] of Object.entries(EJEMPLOS)) {
+    const op = document.createElement('option'); op.value = k; op.textContent = e.titulo; sel.appendChild(op);
+  }
+  sel.addEventListener('change', () => {
+    if (!sel.value) return;
+    java.value = EJEMPLOS[sel.value].codigo; sel.value = '';
+    java.scrollTop = 0; actualizar(true);
+  });
+
+  // ---------- numeración de líneas ----------
+  function pintarGutter() {
+    const n = java.value.split('\n').length;
+    let html = '';
+    for (let i = 1; i <= n; i++) html += i === errLinea ? `<div class="bad">${i}</div>` : `<div>${i}</div>`;
+    gutter.innerHTML = html;
+    gutter.scrollTop = java.scrollTop;
+  }
+  java.addEventListener('scroll', () => { gutter.scrollTop = java.scrollTop; });
+  java.addEventListener('keydown', e => {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      e.preventDefault();
+      const s = java.selectionStart, f = java.selectionEnd;
+      java.setRangeText('    ', s, f, 'end');
+      programar();
+    }
+  });
+  java.addEventListener('input', programar);
+  $('btnLimpiar').addEventListener('click', () => { java.value = ''; actualizar(true); java.focus(); });
+  ['optStrict', 'optDataflow', 'optComments'].forEach(id => $(id).addEventListener('change', () => actualizar(true)));
+
+  function programar() { pintarGutter(); clearTimeout(timer); timer = setTimeout(() => actualizar(false), 250); }
+
+  // ---------- resaltado de Oz ----------
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const KW = new Set(['local','in','end','proc','if','then','else','skip','declare','functor','import','define','case','of','true','false']);
+  function resaltar(code) {
+    const re = /(%[^\n]*)|("(?:[^"\\]|\\.)*")|('(?:[^'\\]|\\.)*')|(\b\d+(?:\.\d+)?(?:e~?\d+)?\b)|(\b[A-Z][A-Za-z0-9_]*\b)|(\b[a-z][A-Za-z0-9_]*\b)/g;
+    let html = '', last = 0, m;
+    while ((m = re.exec(code))) {
+      html += esc(code.slice(last, m.index));
+      const t = esc(m[0]);
+      if (m[1]) html += `<span class="tk-c">${t}</span>`;
+      else if (m[2] || m[3]) html += `<span class="tk-s">${t}</span>`;
+      else if (m[4]) html += `<span class="tk-n">${t}</span>`;
+      else if (m[5]) html += `<span class="tk-v">${t}</span>`;
+      else if (KW.has(m[0])) html += `<span class="tk-k">${t}</span>`;
+      else html += t;
+      last = re.lastIndex;
+    }
+    return html + esc(code.slice(last));
+  }
+
+  // ---------- traducción ----------
+  function actualizar(inmediato) {
+    clearTimeout(timer);
+    store.set('j2oz-borrador', java.value);
+    const src = java.value;
+    $('javaInfo').textContent = src.trim() ? ` · ${src.split('\n').length} líneas` : '';
+    if (!src.trim()) {
+      errLinea = 0; pintarGutter(); ultimo = null;
+      out.textContent = ''; out.classList.remove('stale');
+      status.className = 'status'; status.textContent = 'Escribe o pega un programa Java, o carga un ejemplo.';
+      run.textContent = ''; botones(); return;
+    }
+    try {
+      const r = JavaAOz.translate(src, {
+        strict: $('optStrict').checked, dataflow: $('optDataflow').checked, comments: $('optComments').checked
+      });
+      ultimo = r; clase = r.className; errLinea = 0;
+      status.className = 'status ok';
+      const n = r.functor.split('\n').length;
+      status.textContent = `Traducción correcta: ${n} líneas de Oz a partir de la clase ${r.className}.`;
+      out.classList.remove('stale');
+      mostrar();
+    } catch (e) {
+      if (!(e instanceof JavaAOz.TradError)) { console.error(e); }
+      errLinea = e.line || 0;
+      status.className = 'status err';
+      status.textContent = (errLinea ? `Línea ${errLinea}: ` : '') + (e.message || 'Error inesperado al traducir.');
+      out.classList.add('stale');
+    }
+    pintarGutter(); botones();
+  }
+
+  function mostrar() {
+    if (!ultimo) return;
+    const code = destino === 'interactive' ? ultimo.interactive : ultimo.functor;
+    out.innerHTML = resaltar(code);
+    if (destino === 'interactive') {
+      run.innerHTML = 'En Emacs con Mozart, pega el código en un búfer Oz y aliméntalo con <code>C-. C-b</code>. La salida aparece en el búfer del emulador.';
+    } else {
+      run.innerHTML = `Guárdalo como <code>${clase}.oz</code> y ejecuta <code>docker compose run --rm oz ozrun ${clase}.oz</code>`;
+    }
+  }
+  function botones() {
+    $('btnCopiar').disabled = !ultimo || status.classList.contains('err');
+    $('btnDescargar').disabled = !ultimo || status.classList.contains('err');
+  }
+
+  // ---------- pestañas ----------
+  function elegir(d) {
+    destino = d;
+    $('tabInt').setAttribute('aria-selected', d === 'interactive');
+    $('tabFun').setAttribute('aria-selected', d === 'functor');
+    mostrar();
+  }
+  $('tabInt').addEventListener('click', () => elegir('interactive'));
+  $('tabFun').addEventListener('click', () => elegir('functor'));
+
+  // ---------- copiar ----------
+  function aviso(t) { const el = $('toast'); el.textContent = t; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 1800); }
+  $('btnCopiar').addEventListener('click', async () => {
+    if (!ultimo) return;
+    const code = destino === 'interactive' ? ultimo.interactive : ultimo.functor;
+    try { await navigator.clipboard.writeText(code); aviso('Código copiado'); }
+    catch (e) {
+      const ta = document.createElement('textarea'); ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      let ok = false; try { ok = document.execCommand('copy'); } catch (e2) {}
+      ta.remove(); aviso(ok ? 'Código copiado' : 'No se pudo copiar: selecciona el código y cópialo manualmente');
+    }
+  });
+
+  // ---------- zip mínimo (sin compresión) ----------
+  const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  function zip(files) {
+    const enc = new TextEncoder(), parts = [], central = []; let off = 0;
+    for (const f of files) {
+      const name = enc.encode(f.name), data = enc.encode(f.text), crc = crc32(data);
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true);
+      h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, name.length, true);
+      parts.push(new Uint8Array(h.buffer), name, data);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true);
+      c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, name.length, true);
+      c.setUint32(42, off, true);
+      central.push(new Uint8Array(c.buffer), name);
+      off += 30 + name.length + data.length;
+    }
+    const csize = central.reduce((s, p) => s + p.length, 0);
+    const e = new DataView(new ArrayBuffer(22));
+    e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
+    e.setUint32(12, csize, true); e.setUint32(16, off, true);
+    const all = [...parts, ...central, new Uint8Array(e.buffer)];
+    const res = new Uint8Array(all.reduce((s, p) => s + p.length, 0)); let p = 0;
+    for (const a of all) { res.set(a, p); p += a.length; }
+    return res;
+  }
+
+  let downloads = null;
+  $('btnDescargar').addEventListener('click', async () => {
+    if (!ultimo || !downloads) return;
+    const data = zip([
+      { name: `${clase}.oz`, text: ultimo.functor },
+      { name: `${clase}_interactivo.oz`, text: ultimo.interactive },
+      { name: `${clase}.java`, text: java.value }
+    ]);
+    try { await downloads.save({ filename: `${clase}_oz.zip`, data: new Blob([data], { type: 'application/zip' }) }); }
+    catch (e) {
+      if (e && e.code === 'declined') return;
+      if (e && ['unavailable', 'not_granted', 'capability_disabled', 'capability_removed'].includes(e.code)) $('btnDescargar').hidden = true;
+      aviso('No se pudo descargar el archivo. Usa el botón Copiar.');
+    }
+  });
+  if (window.claude && typeof window.claude.use === 'function') {
+    window.claude.use('downloads').then(d => { downloads = d; if (d) { $('btnDescargar').hidden = false; botones(); } }).catch(() => {});
+  }
+
+  // ---------- inicio ----------
+  java.value = store.get('j2oz-borrador') || EJEMPLOS.Factorial.codigo;
+  actualizar(true);
+})();
+</script>
+</body>
+</html>
